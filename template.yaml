@@ -1,0 +1,5 @@
+components:
+  BMS:
+    outputs: [MotorCtrl, OBC, Display]
+  MotorCtrl:
+    outputs: [BMS, EPB]

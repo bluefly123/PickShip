@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>组件架构可视化工具</title>
+    <!-- 引入依赖 -->
+    <script src="./js-yaml.min.js"></script>
+    <script src="./mermaid.min.js"></script>
+    <style>
+        body { display: flex; margin: 0; height: 100vh; }
+        .panel { width: 220px; padding: 16px; background: #f5f5f5; }
+        .canvas { flex: 1; padding: 20px; overflow: auto; }
+        .box-btn { width: 100%; padding: 8px; margin: 8px 0; }
+    </style>
+</head>
+<body>
+    <!-- 左侧控制面板 -->
+    <div class="panel">
+        <input type="file" id="fileInput" accept=".yaml,.yml">
+        <button class="box-btn" id="resetBtn">恢复全局视图</button>
+        <div id="info"></div>
+    </div>
+    <!-- Mermaid绘图画布 -->
+    <div class="canvas" id="mermaidCanvas"></div>
+
+    <script>
+        // 初始化Mermaid
+        mermaid.initialize({ startOnLoad: false, theme: "default" });
+        let allComponents = {}; // 存储完整yaml组件数据
+        let renderMode = "full"; // full=全局总览，focus=聚焦单个组件
+        let selectedName = "";
+
+        // 渲染Mermaid图
+        function renderChart() {
+            let mermaidCode = "graph LR\n";
+            if(renderMode === "full"){
+                // 全局模式：绘制所有组件和连线
+                Object.keys(allComponents).forEach(name => {
+                    mermaidCode += `    ${name}["${name}"]\n`;
+                    allComponents[name].outputs.forEach(target => {
+                        mermaidCode += `    ${name} --> ${target}\n`;
+                    })
+                })
+            }else{
+                // 聚焦模式：左右分栏
+                const target = selectedName;
+                const links = allComponents[target].outputs;
+                mermaidCode += `    subgraph 选中组件\n        ${target}["${target}"]:::selected\n    end\n`;
+                mermaidCode += `    subgraph 关联交互组件\n`;
+                links.forEach(name => mermaidCode += `        ${name}["${name}"]\n`);
+                mermaidCode += `    end\n`;
+                links.forEach(name => mermaidCode += `    ${target} --> ${name}\n`);
+                // 自定义高亮样式
+                mermaidCode += `classDef selected fill:#cce5ff,stroke:#0056b3,stroke-width:3px;`
+            }
+            // 渲染到页面
+            const canvas = document.getElementById("mermaidCanvas");
+            canvas.innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
+            mermaid.run({ nodes: [canvas.querySelector(".mermaid")] });
+            // 等待 Mermaid 完成渲染后再绑定点击事件
+            setTimeout(bindClick, 50);
+        }
+
+        // 绑定框图点击，切换聚焦视图
+        function bindClick(){
+            const nodes = document.querySelectorAll(".node");
+            nodes.forEach(node => {
+                node.style.cursor = "pointer";
+                node.onclick = () => {
+                    selectedName = node.querySelector("text").textContent;
+                    renderMode = "focus";
+                    document.getElementById("info").innerText = `当前选中：${selectedName}`;
+                    renderChart();
+                }
+            })
+        }
+
+        // 读取本地YAML文件
+        document.getElementById("fileInput").onchange = function(e){
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(res){
+                allComponents = jsyaml.load(res.target.result);
+                allComponents = allComponents.components;
+                renderMode = "full";
+                renderChart();
+            }
+            reader.readAsText(file);
+        }
+
+        // 重置按钮，切回全局视图
+        document.getElementById("resetBtn").onclick = () => {
+            renderMode = "full";
+            document.getElementById("info").innerText = "";
+            renderChart();
+        }
+    </script>
+</body>
+</html>
