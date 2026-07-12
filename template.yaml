@@ -3,3 +3,5 @@ components:
     outputs: [MotorCtrl, OBC, Display]
   MotorCtrl:
     outputs: [BMS, EPB]
+  EPB:
+    outputs: [OBC]
