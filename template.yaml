@@ -1,7 +1,13 @@
 components:
   BMS:
-    outputs: [MotorCtrl, OBC, Display]
+    outputs: 
+      MotorCtrl: [port1, port2]
+      OBC: [port3, port4]
+      Display: [port5]
   MotorCtrl:
-    outputs: [BMS, EPB]
+    outputs: 
+      BMS: [port1, port7]
+      EPB: [port6]
   EPB:
-    outputs: [OBC]
+    outputs: 
+      OBC: [port8]

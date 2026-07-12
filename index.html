@@ -52,33 +52,75 @@
         let renderMode = "full"; // full=全局总览，focus=聚焦单个组件
         let selectedName = "";
 
+        function escapeMermaidLabel(value) {
+            return String(value)
+                .replace(/"/g, '\\"')
+                .replace(/\r?\n/g, " ");
+        }
+
+        function getNodeId(name) {
+            return String(name).replace(/[^A-Za-z0-9_]/g, "_");
+        }
+
+        function getOutputEntries(componentData) {
+            if (!componentData || !componentData.outputs) {
+                return [];
+            }
+            const outputs = componentData.outputs;
+            if (Array.isArray(outputs)) {
+                return outputs.map(name => [name, []]);
+            }
+            return Object.entries(outputs);
+        }
+
         // 渲染Mermaid图
         function renderChart() {
             let mermaidCode = "graph LR\n";
+            const componentNames = Object.keys(allComponents || {});
             if (renderMode === "full") {
                 // 全局模式：绘制所有组件和连线
-                Object.keys(allComponents).forEach(name => {
-                    mermaidCode += `    ${name}["${name}"]\n`;
-                    allComponents[name].outputs.forEach(target => {
-                        mermaidCode += `    ${name} --> ${target}\n`;
-                    })
-                })
-                console.log("全局视图")
-                console.log(mermaidCode)
+                componentNames.forEach(name => {
+                    const nodeId = getNodeId(name);
+                    mermaidCode += `    ${nodeId}["${escapeMermaidLabel(name)}"]\n`;
+                    getOutputEntries(allComponents[name]).forEach(([targetName, ports]) => {
+                        const targetId = getNodeId(targetName);
+                        const portList = Array.isArray(ports) ? ports : [];
+                        if (portList.length > 0) {
+                            portList.forEach(port => {
+                                mermaidCode += `    ${nodeId} -- "${escapeMermaidLabel(port)}" --> ${targetId}\n`;
+                            });
+                        } else {
+                            mermaidCode += `    ${nodeId} --> ${targetId}\n`;
+                        }
+                    });
+                });
+                console.log("全局视图");
+                console.log(mermaidCode);
             } else {
                 // 聚焦模式：左右分栏
                 const target = selectedName;
-                const links = allComponents[target].outputs;
-                mermaidCode += `    subgraph 选中组件\n        ${target}["${target}"]:::selected\n    end\n`;
+                const componentData = allComponents[target] || {};
+                const links = getOutputEntries(componentData);
+                mermaidCode += `    subgraph 选中组件\n        ${getNodeId(target)}["${escapeMermaidLabel(target)}"]:::selected\n    end\n`;
                 mermaidCode += `    subgraph 关联交互组件\n`;
-                // 加载out link中的元素
-                links.forEach(name => mermaidCode += `        ${name}["${name}"]\n`);
+                links.forEach(([name]) => {
+                    mermaidCode += `        ${getNodeId(name)}["${escapeMermaidLabel(name)}"]\n`;
+                });
                 mermaidCode += `    end\n`;
                 // 绘制连线
-                links.forEach(name => mermaidCode += `    ${target} --> ${name}\n`);
+                links.forEach(([name, ports]) => {
+                    const portList = Array.isArray(ports) ? ports : [];
+                    if (portList.length > 0) {
+                        portList.forEach(port => {
+                            mermaidCode += `    ${getNodeId(target)} -- "${escapeMermaidLabel(port)}" --> ${getNodeId(name)}\n`;
+                        });
+                    } else {
+                        mermaidCode += `    ${getNodeId(target)} --> ${getNodeId(name)}\n`;
+                    }
+                });
                 // 自定义高亮样式
-                mermaidCode += `classDef selected fill:#cce5ff,stroke:#0056b3,stroke-width:3px;`
-                console.log(mermaidCode)
+                mermaidCode += `classDef selected fill:#cce5ff,stroke:#0056b3,stroke-width:3px;`;
+                console.log(mermaidCode);
             }
             // 渲染到页面
             const canvas = document.getElementById("mermaidCanvas");
@@ -104,30 +146,33 @@
                     renderMode = "focus";
                     document.getElementById("info").innerText = `当前选中：${selectedName}`;
                     renderChart();
-                }
-            })
+                };
+            });
         }
 
         // 读取本地YAML文件
         document.getElementById("fileInput").onchange = function (e) {
             const file = e.target.files[0];
+            if (!file) {
+                return;
+            }
             const reader = new FileReader();
             reader.onload = function (res) {
-                allComponents = jsyaml.load(res.target.result);
-                allComponents = allComponents.components;
+                const loaded = jsyaml.load(res.target.result);
+                allComponents = loaded && loaded.components ? loaded.components : {};
                 renderMode = "full";
-                console.log(allComponents)
+                console.log(allComponents);
                 renderChart();
-            }
+            };
             reader.readAsText(file);
-        }
+        };
 
         // 重置按钮，切回全局视图
         document.getElementById("resetBtn").onclick = () => {
             renderMode = "full";
             document.getElementById("info").innerText = "";
             renderChart();
-        }
+        };
     </script>
 </body>
 
